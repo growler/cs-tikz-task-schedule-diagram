@@ -1,0 +1,191 @@
+\makeatletter
+\pgfdeclarepatternformonly{dense dots}%
+{\pgfqpoint{-0.5pt}{-0.5pt}}%
+{\pgfqpoint{1.25pt}{1.25pt}}%
+{\pgfqpoint{1.5pt}{1.5pt}}%
+{
+	\pgfpathcircle{\pgfqpoint{0pt}{0pt}}{.25pt}
+	\pgfpathcircle{\pgfqpoint{0.75pt}{0.75pt}}{.25pt}
+	\pgfusepath{fill}
+}
+\tikzset{
+	task schedule/.cd,
+	.search also={/tikz},
+	length/.initial=10,
+	quant/.initial=0.5cm,
+	height/.initial=1cm,
+	task height/.initial=0.5cm,
+	gap/.initial=0,
+	timeline/.style={draw},
+	quant/.code={%
+		\pgfmathparse{(#1) * 2}\pgfkeysalso{height/.expanded=\pgfmathresult}%
+		\pgfmathparse{#1}\pgfkeyslet{/tikz/task schedule/quant}{\pgfmathresult}%
+	},
+	height/.code={%
+		\pgfmathparse{(#1) * 0.4}\pgfkeysalso{task height/.expanded=\pgfmathresult}%
+		\pgfmathparse{#1}\pgfkeyslet{/tikz/task schedule/height}{\pgfmathresult}%
+	},
+	task height/.code={%
+		\pgfmathparse{#1}\pgfkeyslet{/tikz/task schedule/task height}{\pgfmathresult}%
+	},
+	color/.style={%
+		/tikz/every path/.append style={color=#1},
+		/tikz/every node/.append style={color=#1},
+	}
+}
+\def\@tsc@set#1{\tikzset{task schedule/.cd,#1}}
+\def\taskschedule{%
+	\scope\@ifnextchar[\@tsc@p\@tsc@n%
+}
+\def\@tsc@p[#1] {%
+	\@tsc@set{#1}\@tsc@n%
+}
+\def\@tsc@n{%
+	\scope\def\@tsc@timeline@axis{0}%
+	\@tsc@set{gap/.get=\@tsc@gap}%
+	\pgfmathparse{\@tsc@gap}\let\@tsc@timeline\pgfmathresult%
+	\@tsc@start%
+}
+\def\@tsc@start#1 {
+	\csname @tsc@cmd@#1\endcsname
+}
+\def\@tsc@cmd@timeline{%
+	\endscope\scope\@ifnextchar[\@tsc@cmd@timeline@p\@tsc@cmd@timeline@n%
+}
+\def\@tsc@cmd@timeline@p[#1] {%
+	\tikzset{task schedule/timeline/.append style={#1},/tikz,task schedule/timeline}\@tsc@cmd@timeline@n%
+}
+\def\@tsc@cmd@timeline@n #1 {%
+	\@tsc@set{%
+		height/.get=\@tsc@height,%
+		gap/.get=\@tsc@gap%
+	}%
+	\pgfmathparse{(\@tsc@height * (#1)) + \@tsc@gap}\let\@tsc@timeline\pgfmathresult
+	\pgfmathparse{(\@tsc@height * (#1)) + ((#1)==0?0:\@tsc@gap)}\let\@tsc@timeline@axis\pgfmathresult
+	\@tsc@start
+}
+\def\@tsc@def@command#1#2#3#4{%
+	\tikzset{task schedule/#1/.append style={#3}}%
+	\expandafter\edef\csname @tsc@cmd@#1\endcsname{%
+		\noexpand\scope\noexpand\def\noexpand\@tsc@key{/tikz/task schedule/#1}%
+		\noexpand\@ifnextchar[{\csname @tsc@cmd@#1@p\endcsname}{\csname @tsc@cmd@#1@n\endcsname}%
+	}%
+	\expandafter\edef\csname @tsc@cmd@#1@p\endcsname[##1] {%
+		\noexpand\tikzset{task schedule/#1/.append style={##1},/tikz,task schedule/#1}%
+		\csname @tsc@cmd@#1@n\endcsname%
+	}%
+	\ifx \relax#2\relax%
+		\expandafter\def\csname @tsc@cmd@#1@n\endcsname{%
+			#4\endscope\@tsc@start%
+		}%
+	\else%
+		\expandafter\def\csname @tsc@cmd@#1@n\endcsname #2 {%
+			#4\endscope\@tsc@start%
+		}%
+	\fi%
+}
+\expandafter\def\csname @tsc@cmd@;\endcsname{%
+	\endscope\endscope
+}
+\def\@tsc@draw@mark#1#2#3#4{
+	\pgfkeys{
+		/tikz/task schedule/.cd,
+		quant/.get=\@tsc@quant,
+		height/.get=\@tsc@height,
+		task height/.get=\@tsc@task@height
+	}
+	\pgfmathsetmacro{\@y}{\@tsc@task@height}
+	\pgfmathsetmacro{\@h}{#3}
+	\foreach \x in {#2} {
+		\pgfmathsetmacro{\@x}{\@tsc@quant * \x}
+		\draw [task schedule/mark,#1,#4]
+			(\@x pt,\@y pt) -- ++(0, \@h pt);
+	}
+}
+\@tsc@def@command{name}{#1}{}{%
+	\@tsc@set{task height/.get=\@tsc@task@height}
+	\pgfmathsetmacro{\@y}{\@tsc@timeline + (\@tsc@task@height /2 )}
+	\path (0,\@y pt) node[\@tsc@key,anchor=east] {#1};
+}
+\@tsc@def@command{timelines}{#1}{}{%
+	\@tsc@set{height/.get=\@tsc@height}%
+	\pgfmathsetmacro{\@h}{\@tsc@height * (#1)}
+	\path [\@tsc@key] (0,0) -- (0, \@h pt);
+}
+% label[<params>] at <point> {<label>}
+\@tsc@def@command{label}{at #1}{}{
+	\@tsc@set{quant/.get=\@tsc@quant}
+	\foreach \x/\l in {#1} {
+		\pgfmathsetmacro{\@x}{\@tsc@quant * \x}
+		\node at (\@x pt, \@tsc@timeline@axis pt) [,below] {\l};
+	}
+}
+\def\@tsc@draw@run#1#2{
+	\@tsc@set{
+		quant/.get=\@tsc@quant,
+		height/.get=\@tsc@height,
+		task height/.get=\@h,
+	}
+	\pgfmathsetmacro{\@x}{\@tsc@quant * (#1)}
+	\pgfmathsetmacro{\@w}{\@tsc@quant * (#2)}
+	\path [task schedule/timeline,\@tsc@key] (\@x pt,\@tsc@timeline pt) rectangle ++(\@w pt,\@h pt);
+}
+% run[<params>] at <point> for <duration>
+\@tsc@def@command{run}{at #1 for #2}{}{%
+	\@tsc@draw@run{#1}{#2}%
+}
+% critical[<params>] at <point> for <duration>
+\@tsc@def@command{critical}{at #1 for #2}{postaction={pattern=dense dots}}{%
+	\@tsc@draw@run{#1}{#2}%
+}
+% measure[params] between <point> and <point> {<label>}
+\@tsc@def@command{measure}{between #1 and #2 #3}{}{%
+	\@tsc@set{
+		quant/.get=\@tsc@quant,
+		task height/.get=\@tsc@task@height
+	}
+	\pgfmathsetmacro{\@y}{\@tsc@timeline + (1.5 * \@tsc@task@height)}
+	\pgfmathsetmacro{\@a}{\@tsc@quant * #1}
+	\pgfmathsetmacro{\@b}{\@tsc@quant * #2}
+	\draw [\@tsc@key,arrows=latex-latex] (\@a pt, \@y pt) -- node [\@tsc@key,midway,above] {#3} (\@b pt, \@y pt);
+}
+\def\@tsc@draw@mark#1#2#3{
+	\@tsc@set{
+		quant/.get=\@tsc@quant,
+		height/.get=\@tsc@height,
+		task height/.get=\@tsc@task@height
+	}
+	\pgfmathsetmacro{\@y}{\@tsc@timeline + (#2)}
+	\pgfmathsetmacro{\@h}{#3}
+	\foreach \x in {#1} {
+		\pgfmathsetmacro{\@x}{\@tsc@quant * \x}
+		\draw [\@tsc@key]
+			(\@x pt,\@y pt) -- ++(0, \@h pt);
+	}
+}
+% arrive[<params>] at <point>
+\@tsc@def@command{arrive}{at #1}{arrows=-stealth}{%
+	\@tsc@draw@mark{#1}{0}{2 * \@tsc@task@height}
+}
+% deadline[<params>] at <point>
+\@tsc@def@command{deadline}{at #1}{arrows=stealth-}{%
+	\@tsc@draw@mark{#1}{\@tsc@task@height}{\@tsc@task@height}
+}
+% line[<params>] at <point> height <height>
+\@tsc@def@command{mark}{at #1 height #2}{densely dotted}{%
+	\@tsc@draw@mark{#1}{\@tsc@task@height}{\@tsc@height * #2}
+}
+\@tsc@def@command{axis}{#1}{}{
+	\@tsc@set{
+		quant/.get=\@tsc@quant,
+		length/.get=\@tsc@length,
+	}
+	\pgfmathsetmacro{\@l}{\@tsc@quant * \@tsc@length}
+	\path [task schedule/axis] (0,\@tsc@timeline@axis pt) -- (\@l pt,\@tsc@timeline@axis pt)
+	\ifx \relax#1\relax%
+	\else%
+		node [below] {#1}%
+	\fi
+	;
+}
+\makeatother
